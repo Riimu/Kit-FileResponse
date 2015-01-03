@@ -23,16 +23,13 @@ class ConditionalGet
 
     public function checkStatus($lastModified, $eTag)
     {
-        if ($this->matchCache($lastModified, $eTag)) {
-            if (isset($this->headers['if-none-match']) &&
+        if ($this->checkCache($lastModified, $eTag)) {
+            return isset($this->headers['if-none-match']) &&
                 !in_array($this->headers->getRequestMethod(), ['GET', 'HEAD'])
-            ) {
-                return self::HTTP_PRECONDITION_FAILED;
-            }
-            return self::HTTP_NOT_MODIFIED;
-        } elseif (!$this->matchPreCondition($lastModified, $eTag)) {
+                ? self::HTTP_PRECONDITION_FAILED : self::HTTP_NOT_MODIFIED;
+        } elseif (!$this->checkConditions($lastModified, $eTag)) {
             return self::HTTP_PRECONDITION_FAILED;
-        } elseif (isset($this->headers['if-range']) && !$this->matchRange($lastModified, $eTag)) {
+        } elseif (isset($this->headers['if-range']) && !$this->checkRange($lastModified, $eTag)) {
             return self::HTTP_OK;
         }
 
@@ -40,56 +37,22 @@ class ConditionalGet
             ? self::HTTP_PARTIAL_CONTENT : self::HTTP_OK;
     }
 
-    public function matchCache($lastModified, $eTag)
+    public function checkCache($lastModified, $eTag)
     {
-        if ($lastModified === null && $eTag === null) {
-            throw new \InvalidArgumentException('Last modified time and etag cannot both be null');
-        } elseif (!isset($this->headers['if-modified-since']) && !isset($this->headers['if-none-match'])) {
-            return false;
-        } elseif (isset($this->headers['if-unmodified-since']) || isset($this->headers['if-match'])) {
-            throw new ResultUndefinedException('Undefined combination of conditional headers');
-        }
-
-        if (isset($this->headers['if-modified-since']) &&
-            $this->modifiedSince($lastModified, $this->headers['if-modified-since'])
-        ) {
-            return false;
-        } elseif (isset($this->headers['if-none-match']) && !$this->matchETag($eTag, $this->headers['if-none-match'])) {
-            return false;
-        }
-
-        return true;
+        return $this->matchConditionals($lastModified, $eTag, 'if-modified-since', 'if-none-match', false);
     }
 
-    public function matchPreCondition($lastModified, $eTag)
+    public function checkConditions($lastModified, $eTag)
     {
-        return $this->matchConditionals($lastModified, $eTag, 'if-unmodified-since', 'if-match');
-        
-        if ($lastModified === null && $eTag === null) {
-            throw new \InvalidArgumentException('Last modified time and etag cannot both be null');
-        } elseif (!isset($this->headers['if-unmodified-since']) && !isset($this->headers['if-match'])) {
-            return false;
-        } elseif (isset($this->headers['if-modified-since']) || isset($this->headers['if-none-match'])) {
-            throw new ResultUndefinedException('Undefined combination of conditional headers');
-        }
-
-        if (isset($this->headers['if-unmodified-since']) &&
-            $this->modifiedSince($lastModified, $this->headers['if-unmodified-since'])
-        ) {
-            return false;
-        } elseif (isset($this->headers['if-match']) && !$this->matchETag($eTag, $this->headers['if-match'])) {
-            return false;
-        }
-
-        return true;
+        return $this->matchConditionals($lastModified, $eTag, 'if-unmodified-since', 'if-match', true);
     }
 
-    private function matchConditionals($lastModified, $eTag, $timeHeader, $tagHeader)
+    private function matchConditionals($lastModified, $eTag, $timeHeader, $tagHeader, $default)
     {
-        if ($lastModified === null && $eTag === null) {
-            throw new \InvalidArgumentException('Last modified time and etag cannot both be null');
+        if (!$lastModified && !$eTag) {
+            throw new \InvalidArgumentException('You must either define etag or last modified date');
         } elseif (!isset($this->headers[$timeHeader]) && !isset($this->headers[$tagHeader])) {
-            return false;
+            return $default;
         } elseif (
             (isset($this->headers['if-modified-since']) || isset($this->headers['if-none-match'])) &&
             (isset($this->headers['if-unmodified-since']) || isset($this->headers['if-match']))
@@ -106,10 +69,10 @@ class ConditionalGet
         return true;
     }
 
-    public function matchRange($lastModified, $eTag)
+    public function checkRange($lastModified, $eTag)
     {
-        if ($lastModified === null && $eTag === null) {
-            throw new \InvalidArgumentException('Last modified time and etag cannot both be null');
+        if (!$lastModified && !$eTag) {
+            throw new \InvalidArgumentException('You must either define etag or last modified date');
         } elseif (!isset($this->headers['range']) || !isset($this->headers['if-range'])) {
             return false;
         }
@@ -125,15 +88,9 @@ class ConditionalGet
 
     private function modifiedSince($lastModified, $headerValue)
     {
-        if ($lastModified instanceof \DateTime || $lastModified instanceof \DateTimeInterface) {
-            $timestamp = $lastModified->getTimestamp();
-        } elseif (is_int($lastModified) || ctype_digit($lastModified)) {
-            $timestamp = (int) $lastModified;
-        } else {
-            throw new \InvalidArgumentException('Invalid timestamp value');
-        }
-
+        $timestamp = is_object($lastModified) ? (int) $lastModified->getTimestamp() : (int) $lastModified;
         $cache = strtotime($headerValue);
+
         return $cache === false || $timestamp > $cache;
     }
 

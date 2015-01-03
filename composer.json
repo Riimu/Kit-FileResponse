@@ -1,8 +1,9 @@
 {
     "name": "riimu/kit-fileresponse",
     "type": "library",
-    "description": "Library for providing files through php with support for mime types, byte ranges and conditional get",
-    "keywords": ["http", "file", "download", "response", "header", "range", "mime", "conditional", "get"],
+    "description": "Library for supporting byte ranges, mime types and conditional get",
+    "homepage": "http://kit.riimu.net",
+    "keywords": ["http", "header", "range", "mime", "conditional"],
     "license": "MIT",
     "authors": [
         {
