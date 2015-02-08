@@ -90,4 +90,14 @@ abstract class AbstractResponse implements Response
     {
         return $this->maxAge;
     }
+
+    public function open()
+    {
+
+    }
+
+    public function close()
+    {
+
+    }
 }

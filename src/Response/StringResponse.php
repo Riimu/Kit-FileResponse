@@ -21,7 +21,7 @@ class StringResponse extends AbstractResponse
     {
         $eTag = parent::getETag();
 
-        if (!isset($eTag)) {
+        if ($eTag === null) {
             $eTag = md5($this->string);
         }
 

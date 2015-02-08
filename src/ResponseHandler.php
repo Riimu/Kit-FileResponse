@@ -64,9 +64,11 @@ class ResponseHandler
     private function sendNormal(Response $response, $attach)
     {
         $this->headers->setStatus(200, 'OK');
-        $this->headers->setHeader('Accept-Ranges', 'bytes');
-        $this->headers->setHeader('Content-Type', $response->getType());
-        $this->headers->setHeader('Content-Length', $response->getLength());
+        $this->headers->setHeaders([
+            'Accept-Ranges' => 'bytes',
+            'Content-Type' => $response->getType(),
+            'Content-Length' => $response->getLength()
+        ]);
 
         if ($attach && ($name = (string) $response->getName()) !== '') {
             $this->headers->setHeader('Content-Disposition', sprintf('attachment; filename="%s"', addslashes($name)));

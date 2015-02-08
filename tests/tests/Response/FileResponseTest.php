@@ -9,6 +9,18 @@ namespace Riimu\Kit\FileResponse\Response;
  */
 class FileResponseTest extends \PHPUnit_Framework_TestCase
 {
+    private $errorReporting;
+
+    public function setUp()
+    {
+        $this->errorReporting = error_reporting();
+    }
+
+    public function tearDown()
+    {
+        error_reporting($this->errorReporting);
+    }
+
     public function testETag()
     {
         $filename = FILES_DIR . DIRECTORY_SEPARATOR . 'response.txt';
@@ -70,12 +82,78 @@ class FileResponseTest extends \PHPUnit_Framework_TestCase
         $filename = FILES_DIR . DIRECTORY_SEPARATOR . 'response.txt';
         $response = new FileResponse($filename);
         $this->expectOutputString('456');
+        $response->open();
         $response->outputBytes(4, 6);
+        $response->close();
     }
 
     public function testInvalidFile()
     {
         $this->setExpectedException('InvalidArgumentException');
         new FileResponse(FILES_DIR . DIRECTORY_SEPARATOR . 'nonexistantfile');
+    }
+
+    public function testFailedOutput()
+    {
+        $response = new FileResponse(FILES_DIR . '/response.txt');
+
+        $property = new \ReflectionProperty($response, 'path');
+        $property->setAccessible(true);
+        $property->setValue($response, FILES_DIR . '/not_valid_file');
+
+        error_reporting(E_ERROR);
+        $this->setExpectedException('RuntimeException');
+
+        $response->output();
+    }
+
+    public function testFailedOpening()
+    {
+        $response = new FileResponse(FILES_DIR . '/response.txt');
+
+        $property = new \ReflectionProperty($response, 'path');
+        $property->setAccessible(true);
+        $property->setValue($response, FILES_DIR . '/not_valid_file');
+
+        error_reporting(E_ERROR);
+        $this->setExpectedException('RuntimeException');
+
+        $response->open();
+    }
+
+    public function testFailedClosing()
+    {
+        $response = new FileResponse(FILES_DIR . '/response.txt');
+        $response->open();
+
+        $property = new \ReflectionProperty($response, 'handle');
+        $property->setAccessible(true);
+        $property->setValue($response, null);
+
+        error_reporting(E_ERROR);
+        $this->setExpectedException('RuntimeException');
+
+        $response->close();
+    }
+
+    public function testFailedReading()
+    {
+        $response = new FileResponse(FILES_DIR . '/response.txt');
+
+        error_reporting(E_ERROR);
+        $this->setExpectedException('RuntimeException');
+
+        $response->outputBytes(0, 1);
+    }
+
+    public function testTooLongRead()
+    {
+        $response = new FileResponse(FILES_DIR . '/response.txt');
+
+        error_reporting(E_ERROR);
+        $this->setExpectedException('RuntimeException');
+
+        $response->open();
+        $response->outputBytes(0, 100);
     }
 }

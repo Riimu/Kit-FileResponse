@@ -11,11 +11,12 @@ class FileResponse extends AbstractResponse
 {
     private $path;
     private $md5;
+    private $handle;
 
     public function __construct($filename)
     {
-        if (!file_exists($filename)) {
-            throw new \InvalidArgumentException('Response file does not exist');
+        if (!file_exists($filename) || !is_readable($filename) || is_dir($filename)) {
+            throw new \InvalidArgumentException('File does not exist or it is not a readable file');
         }
 
         $this->path = $filename;
@@ -31,7 +32,7 @@ class FileResponse extends AbstractResponse
     {
         $name = parent::getName();
 
-        if (!isset($name)) {
+        if ($name === null) {
             $name = basename($this->path);
         }
 
@@ -42,7 +43,7 @@ class FileResponse extends AbstractResponse
     {
         $lastModified = parent::getLastModified();
 
-        if (!isset($lastModified)) {
+        if ($lastModified === null) {
             $lastModified = filemtime($this->path);
         }
 
@@ -53,7 +54,7 @@ class FileResponse extends AbstractResponse
     {
         $eTag = parent::getETag();
 
-        if (!isset($eTag)) {
+        if ($eTag === null) {
             if ($this->md5) {
                 $eTag = md5_file($this->path);
             } else {
@@ -71,19 +72,48 @@ class FileResponse extends AbstractResponse
 
     public function output()
     {
-        readfile($this->path);
+        if (readfile($this->path) === false) {
+            throw new \RuntimeException('Error occurred while reading output file');
+        };
+    }
+
+    public function open()
+    {
+        $this->handle = fopen($this->path, 'rb');
+
+        if ($this->handle === false) {
+            throw new \RuntimeException('Error occurred while opening output file');
+        }
     }
 
     public function outputBytes($start, $end)
     {
-        $fp = fopen($this->path, 'rb');
-        fseek($fp, $start);
+        fseek($this->handle, $start);
 
-        for ($bytes = $end - $start + 1; $bytes > 0 && !feof($fp); $bytes -= strlen($output)) {
-            $output = fread($fp, min(8192, $bytes));
+        for ($bytes = $end - $start + 1; $bytes > 0; $bytes -= strlen($output)) {
+            $output = fread($this->handle, min(8192, $bytes));
+
+            if ($output === false) {
+                throw new \RuntimeException('Error occurred while attempting to read the output file');
+            } elseif ($this->isUnexpectedEof($bytes - strlen($output))) {
+                throw new \RuntimeException('Unexpected end of output file');
+            }
+
             echo substr($output, 0, $bytes);
         }
+    }
 
-        fclose($fp);
+    private function isUnexpectedEof($bytesLeft)
+    {
+        return feof($this->handle) && $bytesLeft > 0;
+    }
+
+    public function close()
+    {
+        if (fclose($this->handle) === false) {
+            throw new \RuntimeException('Error occurred while closing output file');
+        }
+
+        $this->handle = null;
     }
 }

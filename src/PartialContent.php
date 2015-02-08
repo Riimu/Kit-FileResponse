@@ -111,7 +111,9 @@ class PartialContent
             $this->response->getMaxAge()
         );
 
+        $this->response->open();
         $this->response->outputBytes($start, $end);
+        $this->response->close();
     }
 
     private function sendMultiPart(array $ranges)
@@ -157,10 +159,14 @@ class PartialContent
 
     private function outputMultiResponse(array $ranges, array $separators, $end)
     {
+        $this->response->open();
+
         foreach ($ranges as $range) {
             echo array_shift($separators);
             $this->response->outputBytes($range[0], $range[1]);
         }
+
+        $this->response->close();
 
         echo $end;
     }

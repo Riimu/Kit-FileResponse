@@ -71,23 +71,38 @@ class Headers implements \ArrayAccess
 
     public function setCacheHeaders($lastModified, $eTag, $maxAge = 0)
     {
+        $lastModified = (int) $lastModified;
+        $eTag = (string) $eTag;
+        $maxAge = (int) $maxAge;
+        $headers = [];
+
         if ($maxAge > 0) {
-            $this->setHeader('Expires', gmdate(self::HTTP_DATE, time() + (int) $maxAge));
-            $this->setHeader('Cache-Control', sprintf('public, max-age=%d', (int) $maxAge));
-        } elseif (!$lastModified && !$eTag) {
-            $this->setHeader('Cache-Control', 'private, max-age=0, no-cache, no-store');
-            $this->setHeader('Pragma', 'no-cache');
+            $headers['Expires'] = gmdate(self::HTTP_DATE, time() + (int)$maxAge);
+            $headers['Cache-Control'] = sprintf('public, max-age=%d', (int)$maxAge);
+        } elseif ($lastModified === 0 && $eTag === '') {
+            $headers['Cache-Control'] = 'private, max-age=0, no-cache, no-store';
+            $headers['Pragma'] = 'no-cache';
         } else {
-            $this->setHeader('Cache-Control', 'public, max-age=0, no-cache');
-            $this->setHeader('Pragma', 'no-cache');
+            $headers['Cache-Control'] = 'public, max-age=0, no-cache';
+            $headers['Pragma'] = 'no-cache';
         }
 
-        if ($lastModified) {
-            $this->setHeader('Last-Modified', gmdate(self::HTTP_DATE, $lastModified));
+        $headers += $this->getConditionalHeaders($lastModified, $eTag);
+        $this->setHeaders($headers);
+    }
+
+    private function getConditionalHeaders($lastModified, $eTag)
+    {
+        $headers = [];
+
+        if ($lastModified != 0) {
+            $headers['Last-Modified'] = gmdate(self::HTTP_DATE, $lastModified);
         }
-        if ($eTag) {
-            $this->setHeader('ETag', sprintf('"%s"', addslashes($eTag)));
+        if ($eTag != '') {
+            $headers['ETag'] = sprintf('"%s"', addslashes($eTag));
         }
+
+        return $headers;
     }
 
     public function getRequestMethod()

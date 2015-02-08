@@ -28,5 +28,8 @@ interface Response
     public function getLength();
 
     public function output();
+
+    public function open();
     public function outputBytes($start, $end);
+    public function close();
 }
