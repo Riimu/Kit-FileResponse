@@ -15,10 +15,12 @@ class ConditionalGet
     const HTTP_PRECONDITION_FAILED = 412;
 
     private $headers;
+    private $match;
 
     public function __construct(Headers $headers = null)
     {
         $this->headers = $headers === null ? new Headers() : $headers;
+        $this->match = new HeaderMatch();
     }
 
     public function getResponseStatus($lastModified, $eTag)
@@ -85,9 +87,9 @@ class ConditionalGet
     private function matchConditionalHeaders($lastModified, $eTag, $timeHeader, $tagHeader)
     {
         $notModified = !(isset($this->headers[$timeHeader]) &&
-            $this->modifiedSince($lastModified, $this->headers[$timeHeader]));
+            $this->match->modifiedSince($lastModified, $this->headers[$timeHeader]));
         $match = !(isset($this->headers[$tagHeader]) &&
-            !$this->matchETag($eTag, $this->headers[$tagHeader]));
+            !$this->match->matchETag($eTag, $this->headers[$tagHeader]));
 
         return $match && $notModified;
     }
@@ -99,58 +101,9 @@ class ConditionalGet
         }
 
         if (preg_match('/^(?:W\\/)?"(?:[^"\\\\]+|\\\\.)++"$/', $this->headers['if-range'])) {
-            return $this->matchETag($eTag, $this->headers['if-range']);
+            return $this->match->matchETag($eTag, $this->headers['if-range']);
         }
 
-        return !$this->modifiedSince($lastModified, $this->headers['if-range']);
-    }
-
-    private function modifiedSince($lastModified, $headerValue)
-    {
-        $lastModified = $this->castTimestamp($lastModified);
-
-        if ($lastModified === 0) {
-            return true;
-        }
-
-        $cache = strtotime($headerValue);
-        return $cache === false || $lastModified > $cache;
-    }
-
-    private function matchETag($eTag, $set)
-    {
-        $eTag = (string) $eTag;
-
-        if ($eTag === '') {
-            return false;
-        } elseif (!preg_match('/^[\r\n\t ]*((?:W\\/)?"(?:[^"\\\\]+|\\\\.)++")([\r\n\t ]*,[\r\n\t ]*(?1))*$/', $set)) {
-            return $set === '*';
-        }
-
-        preg_match_all('/(W\\/)?"((?:[^"\\\\]+|\\\\.)++)"/', $set, $matches, PREG_SET_ORDER);
-        return $this->tagMatches($eTag, $matches);
-    }
-
-    private function tagMatches($tag, $matches)
-    {
-        foreach ($matches as $match) {
-            if ($match[1] === 'W/') {
-                continue;
-            } elseif (stripslashes($match[2]) === $tag) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private function castTimestamp($timestamp)
-    {
-        if ($timestamp instanceof \DateTime) {
-            return $timestamp->getTimestamp();
-        }
-
-        return version_compare(PHP_VERSION, '5.5', '>=') && $timestamp instanceof \DateTimeInterface
-            ? $timestamp->getTimestamp() : (int) $timestamp;
+        return !$this->match->modifiedSince($lastModified, $this->headers['if-range']);
     }
 }
