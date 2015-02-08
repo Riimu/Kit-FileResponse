@@ -120,11 +120,9 @@ class PartialContent
         );
 
         $ranges = $this->coalesceRanges($ranges, strlen($separator));
-        $separators = [];
-
-        foreach ($ranges as $range) {
-            $separators[] =  sprintf($separator, $range[0], $range[1]);
-        }
+        $separators = array_map(function ($range) use ($separator) {
+            return sprintf($separator, $range[0], $range[1]);
+        }, $ranges);
 
         $this->sendMultiResponse($ranges, $separators, $boundary);
     }
