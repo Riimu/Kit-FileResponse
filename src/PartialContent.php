@@ -23,11 +23,7 @@ class PartialContent
 
     public function send()
     {
-        if (!isset($this->headers['range'])) {
-            return false;
-        }
-
-        $ranges = $this->parseRanges($this->headers['range']);
+        $ranges = $this->getRanges();
 
         if ($ranges === false) {
             return false;
@@ -38,67 +34,76 @@ class PartialContent
         }
 
         if ($this->multi === false) {
-            $this->sendSingle($ranges[0][0], $ranges[0][1]);
+            $this->sendSinglePart($ranges[0][0], $ranges[0][1]);
         } else {
-            $this->sendMulti($ranges);
+            $this->sendMultiPart($ranges);
         }
 
         return true;
     }
 
-    private function parseRanges($rangeHeader)
+    private function getRanges()
     {
-        if (!preg_match('/^bytes=[\r\n\t ]*\d*-\d*(?:[\r\n\t ]*,[\r\n\t ]*\d*-\d*)*$/', $rangeHeader)) {
+        if (!isset($this->headers['range'])) {
+            return false;
+        } elseif (!preg_match('/^bytes=([\r\n\t ]*\d*-\d*)(?:[\r\n\t ]*,(?1))*$/', $this->headers['range'])) {
             return false;
         }
 
-        preg_match_all('/(\d*)-(\d*)/', $rangeHeader, $matches, PREG_SET_ORDER);
+        preg_match_all('/(\d*)-(\d*)/', $this->headers['range'], $matches);
 
+        if (array_search('-', $matches[0], true) !== false) {
+            return false;
+        }
+
+        return $this->getValidRanges(array_map(null, $matches[1], $matches[2]));
+    }
+
+    private function getValidRanges($parsedRanges)
+    {
         $ranges = [];
         $length = $this->response->getLength();
-        $this->multi = count($matches) > 1;
+        $this->multi = count($parsedRanges) > 1;
 
-        foreach ($matches as $match) {
-            if (strlen($match[1]) === 0 && strlen($match[2]) === 0) {
+        foreach ($parsedRanges as $range) {
+            $valid = $this->validateRange($range[0], $range[1], $length);
+
+            if ($valid === false) {
                 return false;
-            }
-
-            if (strlen($match[1]) === 0) {
-                $start = max(0, $length - 1 - (int) $match[2]);
-                $end = $length - 1;
-            } elseif (strlen($match[2]) === 0) {
-                $start = (int) $match[1];
-                $end = $length - 1;
-            } else {
-                $start = (int) $match[1];
-                $end = (int) $match[2];
-                if ($start > $end) {
-                    return false;
-                } elseif ($end >= $length) {
-                    $end = $length - 1;
-                }
-            }
-
-            if ($start > $end) {
+            } elseif ($valid[0] > $valid[1]) {
                 continue;
             }
 
-            $ranges[] = [$start, $end];
+            $ranges[] = $valid;
         }
 
         return $ranges;
     }
 
-    private function sendSingle($start, $end)
+    private function validateRange($min, $max, $length)
+    {
+        if (strlen($min) === 0) {
+            return [max(0, $length - 1 - (int) $max), $length - 1];
+        } elseif (strlen($max) === 0) {
+            return [(int) $min, $length - 1];
+        }
+
+        if ((int) $min > (int) $max) {
+            return false;
+        }
+
+        return [(int) $min, min((int) $max, $length - 1)];
+    }
+
+    private function sendSinglePart($start, $end)
     {
         $this->headers->setStatus(206, 'Partial Content');
-        $this->headers->setHeader('Accept-Ranges', 'bytes');
-        $this->headers->setHeader('Content-Type', $this->response->getType());
-        $this->headers->setHeader('Content-Length', $end - $start + 1);
-        $this->headers->setHeader(
-            'Content-Range',
-            sprintf('bytes %d-%d/%d', $start, $end, $this->response->getLength())
-        );
+        $this->headers->setHeaders([
+            'Accept-Ranges' => 'bytes',
+            'Content-Type' => $this->response->getType(),
+            'Content-Length' => $end - $start + 1,
+            'Content-Range' => sprintf('bytes %d-%d/%d', $start, $end, $this->response->getLength()),
+        ]);
 
         $this->headers->setCacheHeaders(
             $this->response->getLastModified(),
@@ -109,7 +114,7 @@ class PartialContent
         $this->response->outputBytes($start, $end);
     }
 
-    private function sendMulti(array $ranges)
+    private function sendMultiPart(array $ranges)
     {
         $boundary = $this->generateBoundary();
         $separator = sprintf(

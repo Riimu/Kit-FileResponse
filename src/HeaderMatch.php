@@ -11,7 +11,7 @@ class HeaderMatch
 {
     public function modifiedSince($lastModified, $headerValue)
     {
-        $lastModified = $this->castTimestamp($lastModified);
+        $lastModified = self::castTimestamp($lastModified);
 
         if ($lastModified === 0) {
             return true;
@@ -51,7 +51,7 @@ class HeaderMatch
         return false;
     }
 
-    private function castTimestamp($timestamp)
+    public static function castTimestamp($timestamp)
     {
         if ($timestamp instanceof \DateTime) {
             return $timestamp->getTimestamp();

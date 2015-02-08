@@ -35,7 +35,7 @@ class Headers implements \ArrayAccess
      */
     public function setHeader($header, $value)
     {
-        header("$header: $value");
+        header(sprintf('%s: %s', $header, $value));
     }
 
     public function setHeaders(array $headers)

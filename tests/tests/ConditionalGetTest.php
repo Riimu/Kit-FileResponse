@@ -153,6 +153,12 @@ class ConditionalGetTest extends \PHPUnit_Framework_TestCase
         $this->assertSame(ConditionalGet::HTTP_NOT_MODIFIED, $this->getWithHeaders([
             'if-modified-since' => 'Sun, 06 Nov 1994 08:49:38 GMT',
         ])->getResponseStatus(new \DateTime('Sun, 06 Nov 1994 08:49:38 GMT'), null));
+
+        if (version_compare(PHP_VERSION, '5.5', '>=')) {
+            $this->assertSame(ConditionalGet::HTTP_NOT_MODIFIED, $this->getWithHeaders([
+                'if-modified-since' => 'Sun, 06 Nov 1994 08:49:38 GMT',
+            ])->getResponseStatus(new \DateTimeImmutable('Sun, 06 Nov 1994 08:49:38 GMT'), null));
+        }
     }
 
     public function testIgnoreWeakTags()

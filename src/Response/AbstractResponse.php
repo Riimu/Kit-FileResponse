@@ -1,6 +1,7 @@
 <?php
 
 namespace Riimu\Kit\FileResponse\Response;
+use Riimu\Kit\FileResponse\HeaderMatch;
 use Riimu\Kit\FileResponse\MimeTypes;
 
 /**
@@ -16,9 +17,18 @@ abstract class AbstractResponse implements Response
     protected $eTag;
     protected $maxAge;
 
+    private function setProperty($property, $value, $string)
+    {
+        if ($value === null) {
+            $this->$property = null;
+        } else {
+            $this->$property = $string ? (string) $value : (int) $value;
+        }
+    }
+
     public function setName($filename)
     {
-        $this->name = $filename === null ? null : (string) $filename;
+        $this->setProperty('name', $filename, true);
     }
 
     public function getName()
@@ -28,21 +38,14 @@ abstract class AbstractResponse implements Response
 
     public function setType($mimeType)
     {
-        $this->type = $mimeType === null ? null : (string) $mimeType;
+        $this->setProperty('type', $mimeType, true);
     }
 
     public function getType()
     {
         if (!isset($this->type)) {
-            if ($name = $this->getName()) {
-                $extension = pathinfo($name, PATHINFO_EXTENSION);
-
-                if ($extension && $type = MimeTypes::getMimeType($extension)) {
-                    return $type;
-                }
-            }
-
-            return 'application/octet-stream';
+            $type = MimeTypes::getMimeType(pathinfo((string) $this->getName(), PATHINFO_EXTENSION));
+            return $type === false ? 'application/octet-stream' : $type;
         }
 
         return $this->type;
@@ -50,8 +53,8 @@ abstract class AbstractResponse implements Response
 
     public function setLastModified($timestamp)
     {
-        $this->lastModified = $timestamp === null
-            ? null : (is_object($timestamp) ? (int) $timestamp->getTimestamp() : (int) $timestamp);
+        $timestamp = $timestamp === null ? null : HeaderMatch::castTimestamp($timestamp);
+        $this->setProperty('lastModified', $timestamp, false);
     }
 
     public function getLastModified()
@@ -61,7 +64,7 @@ abstract class AbstractResponse implements Response
 
     public function setETag($eTag)
     {
-        $this->eTag = $eTag === null ? null : (string) $eTag;
+        $this->setProperty('eTag', $eTag, true);
     }
 
     public function getETag()
@@ -71,14 +74,16 @@ abstract class AbstractResponse implements Response
 
     public function setExpires($timestamp)
     {
-        $timestamp = $timestamp === null
-            ? null : (is_object($timestamp) ? (int) $timestamp->getTimestamp() : (int) $timestamp);
-        $this->setMaxAge($timestamp === null ? null : $timestamp - time());
+        if ($timestamp === null) {
+            $this->setMaxAge(null);
+        } else {
+            $this->setMaxAge(HeaderMatch::castTimestamp($timestamp) - time());
+        }
     }
 
     public function setMaxAge($seconds)
     {
-        $this->maxAge = $seconds === null ? null : max(0, (int) $seconds);
+        $this->setProperty('maxAge', $seconds, false);
     }
 
     public function getMaxAge()
