@@ -25,25 +25,18 @@ class ResponseHandler
         }
 
         $this->disableCompression();
-
-        $lastModified = $response->getLastModified();
-        $eTag = $response->getETag();
-
-        if (!$lastModified && !$eTag) {
-            if (isset($this->headers['range'])) {
-                return $this->sendPartial($response);
-            } else {
-                return $this->sendNormal($response, $attach);
-            }
-        }
-
-        $conditionalGet = new ConditionalGet($this->headers);
-        $this->sendResponse($conditionalGet->checkStatus($lastModified, $eTag), $response, $attach);
+        $this->sendResponse($response, $attach);
     }
 
-    private function sendResponse($type, $response, $attach)
+    private function sendResponse(Response $response, $attach)
     {
-        switch ($type) {
+        $conditionalGet = new ConditionalGet($this->headers);
+        $status = $conditionalGet->getResponseStatus(
+            $response->getLastModified(),
+            $response->getETag()
+        );
+
+        switch ($status) {
             case ConditionalGet::HTTP_PARTIAL_CONTENT:
                 return $this->sendPartial($response);
             case ConditionalGet::HTTP_NOT_MODIFIED:

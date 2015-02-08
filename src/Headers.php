@@ -38,6 +38,11 @@ class Headers implements \ArrayAccess
         header("$header: $value");
     }
 
+    public function setHeaders(array $headers)
+    {
+        array_map([$this, 'setHeader'], array_keys($headers), array_values($headers));
+    }
+
     /**
      * Returns the value for the header.
      * @param $header Case insensitive name of the header
