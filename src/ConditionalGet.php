@@ -66,7 +66,7 @@ class ConditionalGet
     private function matchConditionals($lastModified, $eTag, $timeHeader, $tagHeader, $default)
     {
         if ($this->hasHeaderConflict()) {
-            throw new ResultUndefinedException('Undefined combination of conditional headers');
+            throw new UndefinedResultException('Undefined combination of conditional headers');
         } elseif (isset($this->headers[$timeHeader]) || isset($this->headers[$tagHeader])) {
             return $this->matchConditionalHeaders($lastModified, $eTag, $timeHeader, $tagHeader);
         }
@@ -84,13 +84,12 @@ class ConditionalGet
 
     private function matchConditionalHeaders($lastModified, $eTag, $timeHeader, $tagHeader)
     {
-        if (isset($this->headers[$timeHeader]) && $this->modifiedSince($lastModified, $this->headers[$timeHeader])) {
-            return false;
-        } elseif (isset($this->headers[$tagHeader]) && !$this->matchETag($eTag, $this->headers[$tagHeader])) {
-            return false;
-        }
+        $notModified = !(isset($this->headers[$timeHeader]) &&
+            $this->modifiedSince($lastModified, $this->headers[$timeHeader]));
+        $match = !(isset($this->headers[$tagHeader]) &&
+            !$this->matchETag($eTag, $this->headers[$tagHeader]));
 
-        return true;
+        return $match && $notModified;
     }
 
     public function checkRange($lastModified, $eTag)
@@ -115,27 +114,29 @@ class ConditionalGet
         }
 
         $cache = strtotime($headerValue);
-
         return $cache === false || $lastModified > $cache;
     }
 
     private function matchETag($eTag, $set)
     {
-        if (!preg_match(
-            '/^[\r\n\t ]*(W\\/)?"(?:[^"\\\\]+|\\\\.)++"([\r\n\t ]*,[\r\n\t ]*(W\\/)?"(?:[^"\\\\]+|\\\\.)++")*$/',
-            $set
-        )) {
-            return $set === '*' ? true : false;
+        $eTag = (string) $eTag;
+
+        if ($eTag === '') {
+            return false;
+        } elseif (!preg_match('/^[\r\n\t ]*((?:W\\/)?"(?:[^"\\\\]+|\\\\.)++")([\r\n\t ]*,[\r\n\t ]*(?1))*$/', $set)) {
+            return $set === '*';
         }
 
-        preg_match_all('/(W\/)?"((?:[^"\\\\]+|\\\\.)++)"/', $set, $matches, PREG_SET_ORDER);
+        preg_match_all('/(W\\/)?"((?:[^"\\\\]+|\\\\.)++)"/', $set, $matches, PREG_SET_ORDER);
+        return $this->tagMatches($eTag, $matches);
+    }
 
+    private function tagMatches($tag, $matches)
+    {
         foreach ($matches as $match) {
             if ($match[1] === 'W/') {
                 continue;
-            }
-
-            if (stripslashes($match[2]) === (string) $eTag) {
+            } elseif (stripslashes($match[2]) === $tag) {
                 return true;
             }
         }
@@ -153,5 +154,3 @@ class ConditionalGet
             ? $timestamp->getTimestamp() : (int) $timestamp;
     }
 }
-
-class ResultUndefinedException extends \Exception { }

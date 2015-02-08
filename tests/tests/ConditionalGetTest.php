@@ -184,7 +184,7 @@ class ConditionalGetTest extends \PHPUnit_Framework_TestCase
 
     public function testHeaderConflictWithMatch()
     {
-        $this->setExpectedException('Riimu\Kit\FileResponse\ResultUndefinedException');
+        $this->setExpectedException('Riimu\Kit\FileResponse\UndefinedResultException');
         $this->getWithHeaders([
             'if-match' => '',
             'if-none-match' => '',
@@ -193,7 +193,7 @@ class ConditionalGetTest extends \PHPUnit_Framework_TestCase
 
     public function testHeaderConflictWithModified()
     {
-        $this->setExpectedException('Riimu\Kit\FileResponse\ResultUndefinedException');
+        $this->setExpectedException('Riimu\Kit\FileResponse\UndefinedResultException');
         $this->getWithHeaders([
             'if-modified-since' => '',
             'if-unmodified-since' => '',
