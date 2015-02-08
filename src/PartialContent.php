@@ -112,13 +112,17 @@ class PartialContent
     private function sendMulti(array $ranges)
     {
         $boundary = $this->generateBoundary();
-        $separator = "\r\n--$boundary\r\n" .
-            "Content-Type: " . $this->response->getType() . "\r\n" .
-            "Content-Range: bytes %d-%d/" . $this->response->getLength() . "\r\n\r\n";
+        $separator = sprintf(
+            "\r\n--%s\r\nContent-Type: %s\r\nContent-Range: bytes %%d-%%d/%d\r\n\r\n",
+            $boundary,
+            $this->response->getType(),
+            $this->response->getLength()
+        );
+        $end = sprintf("\r\n--%s--\r\n", $boundary);
 
         $ranges = $this->coalesceRanges($ranges, strlen($separator));
         $separators = [];
-        $length = 0;
+        $length = strlen($end);
 
         foreach ($ranges as $key => $range) {
             $formatted = sprintf($separator, $range[0], $range[1]);
@@ -126,13 +130,12 @@ class PartialContent
             $length += strlen($formatted) + ($range[1] - $range[0] + 1);
         }
 
-        $end = "\r\n--$boundary--\r\n";
-        $length += strlen($end);
-
         $this->headers->setStatus(206, 'Partial Content');
-        $this->headers->setHeader('Accept-Ranges', 'bytes');
-        $this->headers->setHeader('Content-Type', 'multipart/byteranges; boundary=' . $boundary);
-        $this->headers->setHeader('Content-Length', $length);
+        $this->headers->setHeaders([
+            'Accept-Ranges' => 'bytes',
+            'Content-Type' => 'multipart/byteranges; boundary=' . $boundary,
+            'Content-Length' => $length,
+        ]);
 
         $this->headers->setCacheHeaders(
             $this->response->getLastModified(),
@@ -166,10 +169,7 @@ class PartialContent
 
         foreach ($ranges as $range) {
             foreach ($accepted as $key => $scope) {
-                if (!(
-                    ($range[0] < $scope[0] && $range[1] < $scope[0] - $gap) ||
-                    ($range[1] > $scope[1] && $range[0] > $scope[1] + $gap)
-                )) {
+                if (!$this->isSeparateRange($range, $scope, $gap)) {
                     $accepted[$key][0] = min($range[0], $scope[0]);
                     $accepted[$key][1] = max($range[1], $scope[1]);
                     continue 2;
@@ -180,5 +180,10 @@ class PartialContent
         }
 
         return $accepted;
+    }
+
+    private function isSeparateRange($one, $two, $gap)
+    {
+        return $one[1] < $two[0] - $gap || $one[0] > $two[1] + $gap;
     }
 }
