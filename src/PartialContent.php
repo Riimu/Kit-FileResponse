@@ -118,17 +118,23 @@ class PartialContent
             $this->response->getType(),
             $this->response->getLength()
         );
-        $end = sprintf("\r\n--%s--\r\n", $boundary);
 
         $ranges = $this->coalesceRanges($ranges, strlen($separator));
         $separators = [];
-        $length = strlen($end);
 
-        foreach ($ranges as $key => $range) {
-            $formatted = sprintf($separator, $range[0], $range[1]);
-            $separators[$key] = $formatted;
-            $length += strlen($formatted) + ($range[1] - $range[0] + 1);
+        foreach ($ranges as $range) {
+            $separators[] =  sprintf($separator, $range[0], $range[1]);
         }
+
+        $this->sendMultiResponse($ranges, $separators, $boundary);
+    }
+
+    private function sendMultiResponse(array $ranges, array $separators, $boundary)
+    {
+        $end = sprintf("\r\n--%s--\r\n", $boundary);
+        $length = array_reduce($ranges, function ($total, $range) {
+            return $total + ($range[1] - $range[0] + 1);
+        }, strlen($end) + array_sum(array_map('strlen', $separators)));
 
         $this->headers->setStatus(206, 'Partial Content');
         $this->headers->setHeaders([
@@ -143,8 +149,8 @@ class PartialContent
             $this->response->getMaxAge()
         );
 
-        foreach ($ranges as $key => $range) {
-            echo $separators[$key];
+        foreach ($ranges as $range) {
+            echo array_shift($separators);
             $this->response->outputBytes($range[0], $range[1]);
         }
 
