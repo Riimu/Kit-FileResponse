@@ -147,6 +147,11 @@ class PartialContent
             $this->response->getMaxAge()
         );
 
+        $this->outputMultiResponse($ranges, $separators, $end);
+    }
+
+    private function outputMultiResponse(array $ranges, array $separators, $end)
+    {
         foreach ($ranges as $range) {
             echo array_shift($separators);
             $this->response->outputBytes($range[0], $range[1]);
