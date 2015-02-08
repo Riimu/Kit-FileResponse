@@ -38,6 +38,32 @@ class Headers implements \ArrayAccess
         header("$header: $value");
     }
 
+    /**
+     * Returns the value for the header.
+     * @param $header Case insensitive name of the header
+     * @return string|null Value of the header or null if it is not set
+     */
+    public function getHeader($header)
+    {
+        $header = strtolower($header);
+
+        if (!isset($this->headers[$header])) {
+            return null;
+        }
+
+        return $this->headers[$header];
+    }
+
+    /**
+     * Tells if the response headers have already been sent.
+     * @return boolean True if the headers have been sent, false if not
+     * @codeCoverageIgnore
+     */
+    public function headersSent()
+    {
+        return headers_sent();
+    }
+
     public function setCacheHeaders($lastModified, $eTag, $maxAge = 0)
     {
         if ($maxAge > 0) {
@@ -83,16 +109,18 @@ class Headers implements \ArrayAccess
 
     public function offsetExists($offset)
     {
-        return isset($this->headers[strtolower($offset)]);
+        return $this->getHeader($offset) !== null;
     }
 
     public function offsetGet($offset)
     {
-        if (!isset($this->headers[strtolower($offset)])) {
+        $header = $this->getHeader($offset);
+
+        if ($header === null) {
             throw new \InvalidArgumentException("Invalid header '$offset'");
         }
 
-        return $this->headers[strtolower($offset)];
+        return $header;
     }
 
     public function offsetSet($offset, $value)

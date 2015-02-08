@@ -20,27 +20,30 @@ class ResponseHandler
 
     public function send(Response $response, $attach = true)
     {
-        if (headers_sent()) {
+        if ($this->headers->headersSent()) {
             throw new \RuntimeException('Cannot create response, headers already sent');
         }
 
-        if (function_exists('apache_setenv')) {
-            apache_setenv('no-gzip', 1);
-        }
-
-        ini_set('zlib.output_compression', 0);
+        $this->disableCompression();
 
         $lastModified = $response->getLastModified();
         $eTag = $response->getETag();
 
         if (!$lastModified && !$eTag) {
-            return isset($this->headers['range'])
-                ? $this->sendPartial($response) : $this->sendNormal($response, $attach);
+            if (isset($this->headers['range'])) {
+                return $this->sendPartial($response);
+            } else {
+                return $this->sendNormal($response, $attach);
+            }
         }
 
-        switch ((new ConditionalGet($this->headers))->checkStatus($lastModified, $eTag)) {
-            case ConditionalGet::HTTP_OK:
-                return $this->sendNormal($response, $attach);
+        $conditionalGet = new ConditionalGet($this->headers);
+        $this->sendResponse($conditionalGet->checkStatus($lastModified, $eTag), $response, $attach);
+    }
+
+    private function sendResponse($type, $response, $attach)
+    {
+        switch ($type) {
             case ConditionalGet::HTTP_PARTIAL_CONTENT:
                 return $this->sendPartial($response);
             case ConditionalGet::HTTP_NOT_MODIFIED:
@@ -48,8 +51,21 @@ class ResponseHandler
             case ConditionalGet::HTTP_PRECONDITION_FAILED:
                 return $this->sendPreconditionFailed();
             default:
-                throw new \RuntimeException("Unexpected conditional get status");
+                return $this->sendNormal($response, $attach);
         }
+    }
+
+    /**
+     * Disables the output compression used by the server or PHP.
+     * @codeCoverageIgnore
+     */
+    protected function disableCompression()
+    {
+        if (function_exists('apache_setenv')) {
+            apache_setenv('no-gzip', 1);
+        }
+
+        ini_set('zlib.output_compression', 0);
     }
 
     private function sendNormal(Response $response, $attach)
@@ -59,7 +75,7 @@ class ResponseHandler
         $this->headers->setHeader('Content-Type', $response->getType());
         $this->headers->setHeader('Content-Length', $response->getLength());
 
-        if ($attach && $name = $response->getName()) {
+        if ($attach && ($name = (string) $response->getName()) !== '') {
             $this->headers->setHeader('Content-Disposition', sprintf('attachment; filename="%s"', addslashes($name)));
         }
 
@@ -72,7 +88,12 @@ class ResponseHandler
     private function sendPartial(Response $response)
     {
         $partial = new PartialContent($response, $this->headers);
-        return $partial->send() ? true : $this->sendNormal($response, false);
+
+        if ($partial->send()) {
+            return true;
+        }
+
+        return $this->sendNormal($response, false);
     }
 
     private function sendNotModified(Response $response)
