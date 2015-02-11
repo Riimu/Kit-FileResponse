@@ -25,7 +25,7 @@ class Headers implements \ArrayAccess
      */
     public function setStatus($code, $descriptor)
     {
-        header("HTTP/1.1 $code $descriptor", $code);
+        header($_SERVER['SERVER_PROTOCOL'] . " $code $descriptor", true, $code);
     }
 
     /**
@@ -45,7 +45,7 @@ class Headers implements \ArrayAccess
 
     /**
      * Returns the value for the header.
-     * @param $header Case insensitive name of the header
+     * @param string $header Case insensitive name of the header
      * @return string|null Value of the header or null if it is not set
      */
     public function getHeader($header)

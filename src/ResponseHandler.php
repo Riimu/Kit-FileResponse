@@ -20,8 +20,10 @@ class ResponseHandler
 
     public function send(Response $response, $attach = true)
     {
-        if ($this->headers->headersSent()) {
-            throw new \RuntimeException('Cannot create response, headers already sent');
+        if ($this->headers->headersSent($file, $line)) {
+            throw new \RuntimeException(
+                sprintf('Cannot send response, headers already sent in %s on line %s', $file, $line)
+            );
         }
 
         $this->disableCompression();
